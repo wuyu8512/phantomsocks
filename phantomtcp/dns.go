@@ -175,28 +175,44 @@ func TCPlookupDNS64(request []byte, address string, offset int, prefix []byte) (
 	return response6[:offset6], nil
 }
 
-func UDPlookup(request []byte, address string) ([]byte, error) {
+func UDPlookup(request []byte, address string, delay int) ([]byte, error) {
 	conn, err := net.Dial("udp", address)
 	if err != nil {
 		return nil, err
 	}
 	defer conn.Close()
+	start := time.Now()
 	_, err = conn.Write(request)
 	if err != nil {
 		return nil, err
 	}
-	conn.SetReadDeadline(time.Now().Add(time.Second * 5))
+	conn.SetReadDeadline(start.Add(time.Second * 5))
 	response := make([]byte, 1024)
+	deadline := time.Duration(delay) * time.Millisecond
 
 	if request[11] == 0 {
-		n, err := conn.Read(response[:])
-		return response[:n], err
+		for {
+			n, err := conn.Read(response[:])
+			if err != nil {
+				return nil, err
+			}
+			if time.Since(start) < deadline {
+				logPrintln(4, "DNS ignore fast reply", address)
+				continue
+			}
+			return response[:n], nil
+		}
 	} else {
 		var n int
 		for {
 			n, err = conn.Read(response[:])
 			if err != nil {
 				return nil, err
+			}
+
+			if time.Since(start) < deadline {
+				logPrintln(4, "DNS ignore fast reply", address)
+				continue
 			}
 
 			if request[11] == 0 || response[11] > 0 {
@@ -893,6 +909,7 @@ type ServerOptions struct {
 	BadSubnet *net.IPNet
 	Fallback  net.IP
 	QType2    uint16
+	Delay     int
 }
 
 func ParseOptions(options string) ServerOptions {
@@ -919,6 +936,10 @@ func ParseOptions(options string) ServerOptions {
 			case "qtype2":
 				if qtype2, err := strconv.ParseUint(key[1], 10, 16); err == nil {
 					serverOpts.QType2 = uint16(qtype2)
+				}
+			case "delay":
+				if delay, err := strconv.Atoi(key[1]); err == nil {
+					serverOpts.Delay = delay
 				}
 			}
 		}
@@ -1144,7 +1165,7 @@ func (outbound *Outbound) NSLookup(name string, qtype uint16) (uint32, []net.IP)
 		switch u.Scheme {
 		case "udp":
 			request = PackRequest(_name, qtype, uint16(0), options.ECS, options.QType2)
-			response, err = UDPlookup(request, u.Host)
+			response, err = UDPlookup(request, u.Host, options.Delay)
 		case "tcp":
 			request = PackRequest(_name, qtype, uint16(0), options.ECS, options.QType2)
 			response, err = TCPlookup(request, u.Host)
@@ -1323,7 +1344,7 @@ func NSRequest(request []byte, cache bool) (uint32, []byte) {
 	var response []byte
 	switch u.Scheme {
 	case "udp":
-		response, err = UDPlookup(_request, u.Host)
+		response, err = UDPlookup(_request, u.Host, options.Delay)
 	case "tcp":
 		response, err = TCPlookup(_request, u.Host)
 	case "tls":
