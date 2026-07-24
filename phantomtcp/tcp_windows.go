@@ -38,55 +38,6 @@ func DialWithOption(laddr, raddr *net.TCPAddr, ttl, mss int, tcpfastopen, keepal
 	}
 }
 
-func DialConnInfo(laddr, raddr *net.TCPAddr, outbound *Outbound, payload []byte) (net.Conn, *ConnectionInfo, error) {
-	addr := raddr.String()
-	timeout := time.Millisecond * time.Duration(outbound.Timeout)
-
-	tfo_id := 0
-	if payload != nil {
-		tfo_id = int(TFOSynID) % 64
-		TFOPayload[tfo_id] = payload
-		defer func() {
-			TFOPayload[tfo_id] = nil
-		}()
-	}
-
-	AddConn(addr, outbound.Hint)
-
-	conn, err := DialWithOption(
-		laddr, raddr,
-		int(outbound.MaxTTL), int(outbound.MTU),
-		(outbound.Hint&HINT_TFO) != 0, (outbound.Hint&HINT_KEEPALIVE) != 0,
-		timeout)
-
-	if err != nil {
-		DelConn(raddr.String())
-		return nil, nil, err
-	}
-
-	laddr = conn.LocalAddr().(*net.TCPAddr)
-	var connInfo *ConnectionInfo = nil
-	if raddr.IP.To4() != nil {
-		select {
-		case connInfo = <-ConnInfo4[laddr.Port]:
-			DelConn(raddr.String())
-			return conn, connInfo, nil
-		case <-time.After(time.Second):
-		}
-	} else {
-		select {
-		case connInfo = <-ConnInfo6[laddr.Port]:
-			DelConn(raddr.String())
-			return conn, connInfo, nil
-		case <-time.After(time.Second):
-		}
-	}
-
-	DelConn(raddr.String())
-
-	return conn, nil, nil
-}
-
 func GetOriginalDST(conn *net.TCPConn) (*net.TCPAddr, error) {
 	LocalAddr := conn.LocalAddr()
 	LocalTCPAddr := LocalAddr.(*net.TCPAddr)
