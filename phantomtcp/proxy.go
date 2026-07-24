@@ -478,7 +478,7 @@ func QUICProxy(address string) {
 				}
 
 				UDPMap[clientAddr.String()] = udpConn
-				_, err = udpConn.Write(data[:n])
+				err = WriteQUICInitial(udpConn, data[:n], outbound)
 				if err != nil {
 					logPrintln(1, err)
 					continue

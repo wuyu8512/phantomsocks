@@ -104,7 +104,6 @@ func (outbound *Outbound) DialUDPProxy(host string, port int) (net.Conn, net.Con
 			}
 			laddr = &net.UDPAddr{IP: _laddr.IP, Port: 0}
 		}
-		laddr.Port = rand.Intn(raddr.Port-1) + 1
 		udpConn, err := net.DialUDP("udp", laddr, &net.UDPAddr{IP: raddr.IP, Port: raddr.Port})
 		return udpConn, nil, err
 	case SOCKS5:
@@ -201,24 +200,6 @@ func (outbound *Outbound) DialUDPProxy(host string, port int) (net.Conn, net.Con
 	}
 
 	return nil, nil, proxy_err
-}
-
-func GetQUICVersion(data []byte) uint32 {
-	if len(data) < 5 {
-		return 0xffffffff
-	}
-	if data[0]&0xC0 != 0xC0 {
-		return 0xffffffff
-	}
-	Version := binary.BigEndian.Uint32(data[1:5])
-	switch Version {
-	case 0xff00001d:
-		return Version
-	case 0x00000001:
-		return Version
-	default:
-		return 0
-	}
 }
 
 func GetLocalUDPAddr(name string, ipv6 bool) (*net.UDPAddr, error) {

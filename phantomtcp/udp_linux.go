@@ -230,7 +230,7 @@ func TProxyUDP(address string) {
 			}
 		}
 
-		_, err = remoteConn.Write(data[:n])
+		err = WriteQUICInitial(remoteConn, data[:n], outbound)
 		if err != nil {
 			logPrintln(1, err)
 			localConn.Close()

@@ -219,13 +219,6 @@ func udp_redirect(client net.Conn, bindAddr *net.UDPAddr) error {
 		laddr = &net.UDPAddr{IP: _laddr.IP, Port: 0}
 	}
 
-	if outbound.Hint&HINT_HTTP3 != 0 {
-		if laddr == nil {
-			laddr = &net.UDPAddr{Port: 0}
-		}
-		laddr.Port = rand.Intn(raddr.Port-1) + 1
-	}
-
 	conn, err := net.DialUDP("udp", laddr, &net.UDPAddr{IP: raddr.IP, Port: raddr.Port})
 	if err != nil {
 		return err
@@ -258,7 +251,7 @@ func udp_redirect(client net.Conn, bindAddr *net.UDPAddr) error {
 	if err = ReadFull(client, b[:msglen]); err != nil {
 		return err
 	}
-	if _, err = conn.Write(b[:msglen]); err != nil {
+	if err = WriteQUICInitial(conn, b[:msglen], outbound); err != nil {
 		return err
 	}
 
