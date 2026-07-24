@@ -261,7 +261,7 @@ func tcp_redirect(client net.Conn, addr *net.TCPAddr, domain string, header []by
 				}
 			}
 
-			if addr.IP == nil && header != nil && header[0] == 0x16 {
+			if header != nil && header[0] == 0x16 {
 				offset, length, ech := GetSNI(header)
 				if length > 0 {
 					sni := string(header[offset : offset+length])
